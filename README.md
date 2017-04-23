@@ -9,4 +9,5 @@ First, I created a program to scrape the monitored keywords on GreatFire.org. Se
 
 ## Contributors
 Noel Konagai - Project Lead
+
 Dr. Pierre Landry - Falculty Mentor
