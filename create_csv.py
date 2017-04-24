@@ -1,4 +1,4 @@
-import json, csv
+import json, csv, time, datetime
 
 def import_exceptions():
 
@@ -54,31 +54,61 @@ def save_to_csv(new_data):
 	'''
 
 	with open('verdicts.csv', 'w') as f:
-		fieldnames = ['Unique_ID','Word_ID', 'Word', 'Time', 'Verdict']
+		fieldnames = ['Unique_ID','Word_ID', 'Word', 'Time_UNIX', 'Time_year', 'Time_month', 'Time_day', 'week_aggregator','Verdict']
 
 		writer = csv.DictWriter(f, fieldnames=fieldnames)
 
 		writer.writeheader()
 
 		counter = 0
+		undefined_counter = 0
 
 		for i in range(len(new_data)):
-			for key, value in new_data[i]['verdicts'].items():
+			index = str(i)
+			for key, value in new_data[index]['verdicts'].items():
 
-				row = {'Unique_ID': counter, 'Word_ID': i, 'Word': new_data[i]['url'][25:], 'Time': float(key), 'Verdict': int(value)}
+				'''
+				The below row variable saves to each row the indicated data of the given key-value (time-verdict) observation. As the timestamps have been saved not as objects but as strings, they need to be converted back to float objects.
+				'''
 
-				counter += 1
+				'''
+				The year, month and day variables are only to keep the date convention. We use the week group aggergator in our analysis.
+				'''
 
-				writer.writerow(row)
+				if value != 1:
+					dtime = datetime.datetime.fromtimestamp(float(key))
+					year = dtime.strftime('%Y')
+					month = dtime.strftime('%m')
+					week = str(int(dtime.strftime('%U')) + (int(year[3]) - 2) * 52)
+					day = dtime.strftime('%d')
 
-	return 0
+					row = {'Unique_ID': counter, 'Word_ID': i, 'Word': new_data[index]['url'][25:], 'Time_UNIX': float(key), 'Time_year': year, 'Time_month': month, 'Time_day': day, 'week_aggregator': week, 'Verdict': int(value)}
+
+					counter += 1
+
+					writer.writerow(row)
+				else:
+					'''
+					if the verdict value was one, meaning undefined, then registry of such key-value pair was ommitted 
+					'''
+					undefined_counter += 1
+					pass
+
+	return undefined_counter, counter
 
 
 with open('verdicts.json', 'r') as infile:
 	data = json.load(infile)
 
-errors = import_exceptions()
-key_list = test_key_errors(errors)
-new_data = change_dict_keys(data, key_list)
-save_to_csv(new_data)
+# errors = import_exceptions()
+# key_list = test_key_errors(errors)
+# new_data = change_dict_keys(data, key_list)
+
+with open ('verdicts_ordered_keys.json') as f:
+	new_data = json.load(f)
+
+undefined_counter, counter = save_to_csv(new_data)
+
+print("The number of observations with undefined outcomes is: ", undefined_counter)
+print("The number of total useful observations is: ", counter - undefined_counter)
 
