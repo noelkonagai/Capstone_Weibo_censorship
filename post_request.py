@@ -1,58 +1,78 @@
-import requests, json, urllib, cookiejar
+import requests, json, urllib, cookiejar, os
+import pandas as pd
+import http.client
+import mimetypes
 
-queries = {}
+def read_file(file_name, save = False):
+    ''' This function creates URL queries based on a text file of keywords input
 
-### below is the code for reading in the censored keywords
-def read_file():
-
-    f = open('censored_keywords_100.csv','r', encoding = "ISO-8859-1")
-    i = 0
-
-    for line in f:
-        query = urllib.parse.quote(line.encode('utf8'))
-        queries[i] = query
-        i += 1
-
-    print(i)
+    Inputs:
+        file_name: path to the file containing the keywords
+        save: boolean, default is false
     
-    return queries
+    Outputs:
+        df: dataframe of keywords and their encoded urls
+        if save: outputs the df into a csv
+    '''
+    urls = []
+    keywords = []
+    f = open(file_name,'r', encoding = "ISO-8859-1")
 
-### below is the code for making the post requests
+    for _, line in enumerate(f):
+        url = urllib.parse.quote(line.encode("ISO-8859-1").decode('utf8').strip('\n')).replace('%', '%25') #For some reason '%' needs to be replaced with '%25'
+        keywords.append(line[18:].encode("ISO-8859-1").decode('utf-8').strip('\n'))
+        urls.append(url)
 
-def post_req(query, i):
-    url = "https://en.greatfire.org/backend/GetTestsLimit"
+    df = pd.DataFrame(list(zip(keywords, urls)), columns =['keyword', 'url']) 
+    
+    if save:
+        output_path = os.path.join("data", "keywords_url.csv")
+        df.to_csv(output_path)
+    
+    return df
 
-    body = {
-        "url" : "http://" + query,
-        "limit" : '80',
-        }
+def post_req(query, id, save = False):
+    """ This function makes the POST request to Greatfire.Org
 
+    Input:
+        query: a URL to add into the referer header
+        id: the id for a given keyword
+        save: boolean, whether to save the JSON response
+
+    Output:
+        json_data: the JSON from the post request
+    """
+    # For debugging purposes use the sample query below.
+    # sample_query = 's.weibo.com/weibo/%25E4%25B9%25A0%25EF%25BC%258B%25E5%25BE%25AE%25E8%2596%2584'
+    
+    conn = http.client.HTTPSConnection("en.greatfire.org")
+                        
+    payload = 'limit=80&url=http%3A//' + query
     headers = {
-    'accept': "*/*",
-    'origin': "https://en.greatfire.org",
-    'x-devtools-emulate-network-conditions-client-id': "a5adc3d0-539d-4a31-a640-df5888f9ab3d",
-    'x-requested-with': "XMLHttpRequest",
-    'user-agent': "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_12_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/56.0.2924.87 Safari/537.36",
-    'content-type': "application/x-www-form-urlencoded",
-    'referer': "https://en.greatfire.org/" + query,
-    'accept-encoding': "gzip, deflate, br",
-    'accept-language': "en-US,en;q=0.8,hu;q=0.6",
-    'cookie': "__cfduid=db83a804b42f11f8c572f0eaeecac62961486457327; __uvt=; _ga=GA1.2.2005229289.1486457336; __atuvc=84%7C6%2C28%7C7%2C4%7C8; __atuvs=58a9937ce00f8257003; __utmt=1; __utma=146067563.2005229289.1486457336.1486967185.1487508314.14; __utmb=146067563.5.10.1487508314; __utmc=146067563; __utmz=146067563.1486697085.8.2.utmcsr=google|utmccn=(organic)|utmcmd=organic|utmctr=(not%20provided); uvts=5d2yG9D0jQHGD9xE; has_js=1; __uvt=; _ga=GA1.2.2005229289.1486457336; __utmt=1; __atuvc=84%7C6%2C28%7C7%2C8%7C8; __atuvs=58aa6f5ccb59633a002; __utma=146067563.2005229289.1486457336.1487508314.1487564637.15; __utmb=146067563.4.10.1487564637; __utmc=146067563; __utmz=146067563.1486697085.8.2.utmcsr=google|utmccn=(organic)|utmcmd=organic|utmctr=(not%20provided); uvts=5d2yG9D0jQHGD9xE; __cfduid=df4608ed2faa9a5f31c8b78dccd1d36e81487564736; has_js=1",
-    'cache-control': "no-cache",
-    'postman-token': "80eefb18-4368-5504-d5c2-91462a8f3544"
+    'Accept': '*/*',
+    'DNT': '1',
+    'X-Requested-With': 'XMLHttpRequest',
+    'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/79.0.3945.130 Safari/537.36',
+    'Content-Type': 'application/x-www-form-urlencoded'
     }
+    conn.request("POST", "/backend/GetTestsLimit", payload, headers)
+    res = conn.getresponse()
+    data = res.read().decode("utf-8")
+    json_data = json.loads(data)
+    # print(json_data["urlTests"][0]["verdict"])
 
-    r = requests.post(url, data = body, headers=headers)
+    if save:
+        outfile_path = os.path.join('data', 'raw_data', str(id) + '.json')
+        with open(outfile_path, 'w') as json_file:
+            json.dump(json_data, json_file, indent=4, ensure_ascii=False) # ensure_ascii False is needed to save Chinese characters
 
-    JSON_response = r.json()
+    return json_data
 
-    with open(str(i) + '.json', 'w') as outfile:
-        json.dump(JSON_response, outfile)
-
-    return JSON_response
-
-read_file()
-# post_req()
-
-# for i in range(3):
-#     post_req(queries[i], i)
+if __name__ == "__main__":
+    keywords_path = os.path.join('data', 'keyword_query', 'keywords_first_100.txt')
+    query_df = read_file(keywords_path, save = True)
+    
+    for i in range(len(query_df)):
+        post_req(query_df.url[i], i, save = True)
+        if i == 1:
+            break
