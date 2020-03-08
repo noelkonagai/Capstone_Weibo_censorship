@@ -1,3 +1,4 @@
+from multiprocessing.dummy import Pool as ThreadPool
 import requests, json, urllib, cookiejar, os
 import pandas as pd
 import http.client
@@ -127,8 +128,10 @@ class PostRequest:
                                                                             self.request_error))
 
 if __name__ == "__main__":
+
+
     # Debugging code
-    keywords_path = os.path.join('data', 'keyword_query', 'keywords_first_100.txt')
+    keywords_path = os.path.join('data', 'keyword_query', 'keywords_all.txt')
     Scraper = PostRequest()
     query_df = Scraper.read_file(keywords_path, save = True)
     vector_list = []
@@ -136,19 +139,24 @@ if __name__ == "__main__":
 
     vector_file_path = os.path.join("data", "train", "verdicts.npy")
     label_file_path = os.path.join("data", "train", "labels.csv")
-    
+
+    label_file = open("./data/train/test_label.csv", "a")
+    verdict_file = "./data/train/test_verdict.npy"
+
     for i in tqdm(range(len(query_df))):
         json_data = Scraper.post_req(query_df.url[i], i, save = False)
         if json_data:
+            label_file.write(query_df.keyword[i]+'\n')
             vector = Scraper.vectorize(json_data)
-            vector_list.append(vector)
-            label_list.append(query_df.keyword[i])
+            np.save(verdict_file, vector)
+            # vector_list.append(vector)
+            # label_list.append(query_df.keyword[i])
 
     Scraper.verbose()
 
     label_series = pd.Series(label_list)
-    label_series.to_csv(label_file_path)
-    np.save(vector_file_path, np.array(vector_list))
+    # label_series.to_csv(label_file_path)
+    # np.save(vector_file_path, np.array(vector_list))
 
 
     
